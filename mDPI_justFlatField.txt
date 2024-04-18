@@ -1,0 +1,100 @@
+//This macro requires the plugin StackAverage_.java and the Image Calculator Plus macro
+////This macro produces a flat-fielded stack of mDPI images in the directory of your choosing.
+//////Operates via the 'DolMicrobe Cruise Pipeline' which expects a director of raw TIFF images
+//by Patrick I. Duffy
+//Skidaway Institute of Oceanography, University of Georgia 2021
+//Adapted from macro for ISIIS-imager by Adam T. Greer
+
+//Known 'Bug': Script will crash at the end unless # images is exactly divisible by 100. I (Patrick) never fixed this because
+//  the mDPI's raw data stream is still recording during recovery so the final <100 images are always thrown out at the end anyway
+
+background = getDirectory('Choose Background_average output Directory'); 	
+
+outputDirFF = getDirectory('Choose FlatField Image Output Folder');
+
+inputDir = getDirectory('Choose Input Image Directory'); 
+
+  //directory to store flat-field background averages
+  //best to use a folder 1-level up from master_dir, labelled 'Averages'
+					       
+
+// END USER-DEFINED VARIABLES //
+
+//create the list of images to be flatfielded and load their file-names into a data.table
+files = getFileList(inputDir); 
+max = lengthOf(files);
+paths = newArray(max);
+timestamps = newArray(max);
+//A data table is created of timestamps within the file-name of each image
+for(i=0; i<max; i++){
+	paths[i] = files[i];
+	inlabel = split(files[i],"_");
+	timestart = inlabel[4];
+	f = split(inlabel[5],".");
+	frames = f[0];
+	//padding the frame number in the array so every frame has the same number of characters
+	while(lengthOf(frames) < 5){
+		frames = "0"+frames; 
+	}
+	timestamps[i] = timestart+frames;
+}
+Table.create("image_sorting");
+IJ.renameResults("image_sorting","Results"); //Renaming an open results table
+Table.setColumn("path",paths); //Renaming some columns
+Table.setColumn("times",timestamps);
+//Should sort the table by the timestamps which are the time-start+Frame#
+Table.sort("times");
+//Now just storing the image paths in the order we want to load them, using the corrected results-table
+frameorder = newArray(max); //new array is the length of the number of images created earlier ('max')
+for (i=0; i<nResults; i++){
+  frameorder[i] = getResultString("path",i);
+}
+//For some reason the GUI that pops up from inputDir function doesn't input the last '/' to call something a folder
+dir = inputDir+"/";
+//Closing the file-name results table
+selectWindow("Results");
+run("Close");
+//for each 'stack' of 100 sequential images, load them, calculate an average background, then flatfield each image.
+//to accomplish this, a loop in a loop is used. The first loop tracks the position in the total dataset of images, the second loop
+//tracks each individual image within a stack in order to calculate a flatfield for each image in each stack
+f=1; //f is the stack# recording variable
+for(i=1; i<max; i++){ //the position in the total dataset of images
+   cur_stack = newArray(100); //creating an empty array 100 long
+   stack_start = i; //recording the image# in whole dataset that the current stack is starting on
+   for (n=0; n<100; n++){ //the batch of opening 100-images at one time
+	img_n = stack_start+n; //using the stack-start + the new loop to determine which image to open when
+	impath = inputDir+frameorder[img_n];
+	open(impath);
+	cur_stack[n] = frameorder[img_n]; //storing the frame in a seq for pulling up for the ROI
+   }
+   run("Images to Stack", "name=Stack title=[] use");//loads the 100 open images into a stack
+   run("StackAverage ");//produce the background_average	
+   run("Copy");
+   run("Internal Clipboard");	
+//save the background average calculation as a separate image	
+   saveAs("Tiff", background+"/ffavg_"+f+".tif"); //saves the background 100 image average as "ffavg_#.tiff"
+   rename("avg100"); //opens the calculated StackAverage and renames to 'ff'
+//close the stack of 100 images
+   selectWindow("Stack");
+   close();
+//now each image will be re-opened, individually, and divided against the background to create a flatfield
+   for(x=0; x<100; x++){
+	impath = inputDir+cur_stack[x];
+	open(impath);
+	rename("imgname"); //renames the opened image
+	run("Calculator Plus", "i1=imgname i2=avg100 operation=[Divide: i2 = (i1/i2) x k1 + k2] k1=255 k2=0 create");
+	rename(cur_stack[x]);
+        saveAs("Tiff", outputDirFF+"/ff_"+cur_stack[x]+".tif"); //saves the flatfielded image
+	selectWindow("imgname");
+	close();
+	ff_img = "ff_"+cur_stack[x]+".tif";
+	if (isOpen(ff_img)){ //close the newly produced flatfield image
+    		selectWindow(ff_img);
+   		run("Close");
+	}
+    }
+   close();//closes the flatfield average background
+   i=i+100; //needed because the for external for-loop of the stack start, i, needs to be increased by 100 images and you want the next loop to start w/ the 101st.
+   f=f+1;
+} //closes the larger loop
+

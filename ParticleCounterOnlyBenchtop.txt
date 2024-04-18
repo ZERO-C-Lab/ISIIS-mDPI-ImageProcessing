@@ -1,0 +1,26 @@
+//This macro sizes each particle >=700 pixels in a directory
+//of image stacks and saves each result as a .txt file
+//in another specified directory
+//by Adam T. Greer 
+//University of Georgia 2023
+
+dir = getDirectory("Choose a Directory");//directory of images to be processed
+filelist = getFileList(dir);
+max = lengthOf(filelist);
+
+for (i=0; i<max; i++)  { 
+open(dir+filelist[i]);
+
+run("8-bit");
+setAutoThreshold("Default");
+//run("Threshold...");
+setThreshold(0, 200, "Black & White"); //edit threshold here
+
+run("Set Measurements...", "area perimeter bounding fit shape display redirect=None decimal=3");
+
+run("Analyze Particles...", "size=170-infinity circularity=0-1.0 show=Nothing display clear include exclude stack slice");
+
+saveAs("Results", "d:/BenchtopResults/"+filelist[i]+".txt"); //edit output directory here
+run("Close");
+close();
+}

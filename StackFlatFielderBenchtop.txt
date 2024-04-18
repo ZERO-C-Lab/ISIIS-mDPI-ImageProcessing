@@ -1,0 +1,38 @@
+//This macro requires the plugin StackAverage_.java and the Image Calculator Plus macro
+//Need to have at least 4000 MB of memory available to ImageJ
+//This macro produces a flat-fielded stack of ISIIS images in the directory of your choosing.
+//by Adam T. Greer 
+//University of Miami 2013
+
+dir = getDirectory("Choose a Directory");//directory of images to be processed
+filelist = getFileList(dir);
+max = lengthOf(filelist);
+
+
+//loop over all files in the directory
+
+for (i=0; i<max; i++)  { 
+//open(dir+filelist[i]);
+run("AVI...","select=["+dir+filelist[i]+"] convert");
+
+//Get average of the stack
+
+run("StackAverage ");
+stackname = getTitle();
+x=nSlices;
+run("Make Substack...", "delete slices="+x);
+selectWindow("Substack ("+x+")");
+rename("ff");
+
+//run the flat fielding
+
+selectWindow(stackname);
+run("Calculator Plus", "i1=stackname i2=ff operation=[Divide: i2 = (i1/i2) x k1 + k2] k1=235 k2=0 create");
+
+//save
+
+saveAs("Tiff", "d:/Benchff/"+filelist[i]); //specify the output directory here
+close();
+close();
+close();
+}

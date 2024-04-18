@@ -1,0 +1,88 @@
+//This macro performs a particle analysis then crops the plankton
+//from the original image and saves it to the segments directory
+//Particle stats are saved to the ParticleCounts directory
+//This works on a folder with single .tif images
+//Adam Greer
+//University of Georgia November 2023
+
+dir = getDirectory("Choose a Directory");
+filelist = getFileList(dir);
+max = lengthOf(filelist);
+
+for (i=0; i<max; i++)  {
+open(dir+filelist[i]);
+imgtitle = getTitle();
+hh = getHeight();
+ww = getWidth();
+
+run("8-bit");
+setAutoThreshold("Default");
+//run("Threshold...") previous was 150
+setThreshold(0, 170, "Black & White");
+run("Set Measurements...", "area perimeter bounding fit shape stack display redirect = None decimal = 3");
+
+//Set the size of the particles segmented here
+//excluding the particles that touch the edges
+//just delete the word exclude if you want to change that
+//circ a little above 0 to get rid of tiny lines
+run("Analyze Particles...", "size=2000-inf circularity=0.02-1 show=Nothing display clear include exclude"); 
+
+if(nResults > 0) {
+saveAs("Results", "d:/ParticleCounts/"+filelist[i]+".txt");
+
+for (j=0; j<nResults; j++) {
+imagename = getResult("Label", j);
+xpos = getResult("BX", j);
+ypos = getResult("BY", j);
+xlength = getResult("Width", j);
+ylength = getResult("Height", j);
+
+//give the selection a little buffer zone
+buffer = 20;
+xpos2 = xpos - buffer;
+xlength2 = xlength + (2*buffer);
+ypos2 = ypos - buffer;
+ylength2 = ylength + (2*buffer);
+
+if(xpos2+xlength2 > ww)
+	xlength2 = ww - xpos2;
+else
+	xlength2 = xlength2;
+
+if(xpos2 < 0)
+	xpos2 = 0;
+else
+	xpos2 = xpos2;
+
+if(ypos2+ylength2 > hh)
+	ylength2 = hh - ypos2;
+else
+	ylength2 = ylength2;
+
+
+if(ypos2 < 0)
+	ypos2 = 0;
+else
+	ypos2 = ypos2;
+
+
+selectWindow(imgtitle);
+makeRectangle(xpos2, ypos2, xlength2, ylength2);
+run("Copy");
+run("Internal Clipboard");
+selectWindow("Clipboard");
+saveAs("Tiff", "d:/Segments/Plankton_"+imgtitle+"_"+xpos+"_"+ypos+"_"+xlength+"_"+ylength);
+run("Close");
+
+} //close the for loop
+close();
+selectWindow("Results");
+run("Close");
+} else { //close the if statement
+close();
+}
+} //close massive for loop
+
+
+
+
