@@ -7,6 +7,4 @@ The flat-fielding code runs on .avi files, .tiff stacks, or individual .tiffs. A
 
 Segmentation is the process of removing Regions of Interest (ROIs) within a certain size range (in pixels) as specified by the user. The default code includes empty space in the middle of a object (as commonly seen in gelatinous zooplankton) as part of the calculate size. These ROIs are saved to their own directory and can be identified manually or automatically. An example StartupMacros.txt file is provided to demonstrate how you can use ImageJ to set up keyboard shortcuts to identify ROIs in a directory. There is also a keyboard shortcut (0) to experiment with flat fielding a .tiff image stack. 
 
-All macros require setting up directories on your machine for the output files or, in some cases, image statistics (.txt files). Take note of when those directories are required, and edit the code to match them on your machine.
-
 Macros for the mDPI were written by Patrick Duffy and include the full processing pipeline (flat-fielding and segmention) or itemized versions to run these processes separately.
