@@ -9,8 +9,8 @@
 low_thresh = 0;
 high_thresh = 200;
 
-//minimum pixels^2 to cut and segment ROI separately
-min_roi = 2019;
+//minimum pixels^2 to cut and segment ROI separately 
+min_roi = 1029;
 
 //minimum pixels^2 to record information on particles
 min_pix = 132;
