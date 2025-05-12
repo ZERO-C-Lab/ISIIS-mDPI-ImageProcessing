@@ -9,13 +9,14 @@
 low_thresh = 0;
 high_thresh = 200;
 
-//minimum pixels^2 to cut and segment ROI separately 
-min_roi = 1029;
+//minimum pixels to cut and segment ROI separately 
+//Each pixel in the mDPI is 44 microns 
+//1000 pixel organism is 1.57 mm equivalent spherical diameter 
+min_roi = 1000;
 
-//minimum pixels^2 to record information on particles
-min_pix = 132;
-	//23px = 1mm; therefore a 500um cutoff (length/width single side) = 132 px^2
-
+//minimum pixels to record information on particles
+//500 micron equivalent spherical diameter organism will be 101 pixels in area
+min_pix = 101;
 
 outputDir = getDirectory('Choose ROI Output Directory'); 
 
