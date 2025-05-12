@@ -1,0 +1,110 @@
+//This macro requires the plugin StackAverage_.java and the Image Calculator Plus macro
+////This macro uses an InputDirectory of flatfields to record the particle-data inside of a frame for the PSD_enumeration
+//////Operates via the 'DolMicrobe Cruise Pipeline' which expects a director of raw TIFF images
+//by Patrick I. Duffy
+//Skidaway Institute of Oceanography, University of Georgia 2021
+//Adapted from macro for ISIIS-imager by Adam T. Greer
+
+//easy to change size-related threshholding variables
+low_thresh = 0;
+high_thresh = 200;
+
+//minimum pixels^2 to cut and segment ROI separately 
+min_roi = 1029;
+
+//minimum pixels^2 to record information on particles
+min_pix = 132;
+	//23px = 1mm; therefore a 500um cutoff (length/width single side) = 132 px^2
+
+
+outputDir = getDirectory('Choose ROI Output Directory'); 
+
+
+output_files = getDirectory('Choose Particle_Data_Output Directory'); 
+noiseDir = getDirectory('Choose Noisy Image Directory');
+inputDir = getDirectory('Choose Input Directory'); 
+
+
+  //directory to store flat-field background averages
+  //best to use a folder 1-level up from master_dir, labelled 'Averages'
+					       
+
+// END USER-DEFINED VARIABLES //
+
+files = getFileList(inputDir); //makes a list of the flatfields
+numFiles = lengthOf(files);
+
+for(i=1; i<numFiles; i++){
+	impath = inputDir+files[i];
+	open(impath);
+	ff_img = files[i]; //the name of the flat-field image to call it in functions
+   	setThreshold(low_thresh, high_thresh, "Black & White");   
+   	getStatistics(area, mean, min, max, std);
+ 
+ 	// it also has a check for images that are entirely covered by bags (very dark and low std deviation)
+   	if((mean <= 243 && std >= 25) || (mean <= 235 && std <=40)){  
+   		saveAs("Tiff", noiseDir+"/"+files[i]);
+   		run("Close");
+ 	  } else  
+  	 {
+	   if(isOpen(ff_img)){
+		selectWindow(ff_img);
+		hh = getHeight();
+       	 	ww = getWidth();
+    		//Setting the grayscale pixel value thresholds on the flat-field
+  		//setThreshold(low_thresh, high_thresh, "Black & White");   
+    		//The following function chooses which parameters are recorded about Particles 
+    		//run("Set Measurements...", "area perimeter bounding fit shape stack display redirect = None decimal = 3");  
+		run("Set Measurements...", "area mean standard bounding modal min centroid center perimeter fit shape feret's median skewness kurtosis limit stack display redirect=None decimal=3");  
+		//size 1029 pixels in the mDPI is 1.59mm ESD (1px=44.5 um)
+    		run("Analyze Particles...", "size=min_pix-inf circularity=0-1 show=Nothing display clear include stack slice");       
+		saveAs("Results", output_files+"/"+files[i]+".txt");    //save the entire results table
+		//new loop to check to see if any result in the results-table has an area greater than the roi-size cutoff, if there is an ROI it breaks the loop
+		//I couldn't come up with a better way to check
+        	for (j = 0; j < nResults; j++) {
+            	      if (getResult("Area", j) >= min_roi) {
+                	imagename = getResult("Label", j);
+      			xpos = getResult("BX", j);
+         		ypos = getResult("BY", j);
+         		xlength = getResult("Width", j);
+        		ylength = getResult("Height", j);                     
+        		//give the selection a buffer zone
+        		//the 2*buffer centers the ID'd particle 
+       			buffer = 25;
+       			xpos2 = xpos - buffer;
+       			xlength2 = xlength + (2*buffer);
+       			ypos2 = ypos - buffer;
+       			ylength2 = ylength + (2*buffer);        
+       			//if the length in x-direction hits edge of frame
+       			if(xpos2+xlength2 > ww) 
+        			xlength2 = ww - xpos2;
+       			else
+        			xlength2 = xlength2;        
+      			if(xpos2 < 0)
+        			xpos2 = 0;
+      			else
+        			xpos2 = xpos2;        
+        		if(ypos2+ylength2 > hh)
+        			ylength2 = hh - ypos2;
+      			else
+      		  		ylength2 = ylength2;        
+       			if(ypos2 < 0)
+        			ypos2 = 0;
+      			else
+        			ypos2 = ypos2;        
+        		selectWindow(ff_img);
+        		makeRectangle(xpos2, ypos2, xlength2, ylength2);
+                	run("Copy");
+                	run("Internal Clipboard");
+                	saveAs("Tiff", outputDir + "/" + files[i]+"_"+"_"+xpos+"_"+ypos+"_"+xlength+"_"+ylength);
+                	close();
+            	       }
+        	} //end results table loop for 1 image with the j-for loop
+	        close("Results");
+		}
+      }
+  selectWindow(ff_img);
+  close();
+}
+
+
