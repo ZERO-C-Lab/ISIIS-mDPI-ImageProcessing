@@ -82,7 +82,7 @@ for(i=1; i<max; i++){ //the position in the total dataset of images
 	impath = inputDir+cur_stack[x];
 	open(impath);
 	rename("imgname"); //renames the opened image
-	run("Calculator Plus", "i1=imgname i2=avg100 operation=[Divide: i2 = (i1/i2) x k1 + k2] k1=255 k2=0 create");
+	run("Calculator Plus", "i1=imgname i2=avg100 operation=[Divide: i2 = (i1/i2) x k1 + k2] k1=235 k2=0 create");
 	rename(cur_stack[x]);
         saveAs("Tiff", outputDirFF+"/ff_"+cur_stack[x]+".tif"); //saves the flatfielded image
 	selectWindow("imgname");
