@@ -1,0 +1,160 @@
+//This macro requires the plugin StackAverage_.java and the Image Calculator Plus macro
+////This macro produces a flat-fielded stack of mDPI images in the directory of your choosing.
+//////Operates via the 'DolMicrobe Cruise Pipeline' which expects a director of raw TIFF images
+//by Patrick I. Duffy
+//Skidaway Institute of Oceanography, University of Georgia 2021
+//Adapted from macro for ISIIS-imager by Adam T. Greer
+
+//easy to change size-related threshholding variables
+low_thresh = 0;
+high_thresh = 200;
+
+//minimum pixels to cut and segment ROI separately 
+min_roi = 1000;
+
+//minimum pixels to record information on particles
+min_pix = 101;
+	//500um ESD cutoff = 101 px
+
+background = getDirectory('Choose Background_average Directory'); 	
+outputDir = getDirectory('Choose ROI Output Directory'); 
+//output_ROImetadata = getDirectory('Choose ROI MetaData Directory');
+outputDirFF = getDirectory('Choose FlatField Image Output');
+output_files = getDirectory('Choose Particle_Data_Output Directory'); 
+inputDir = getDirectory('Choose Input Directory'); 
+
+  //directory to store flat-field background averages
+  //best to use a folder 1-level up from master_dir, labelled 'Averages'
+					       
+
+// END USER-DEFINED VARIABLES //
+
+files = getFileList(inputDir); //makes a list of how many stacks of 100 images and their folder names
+max = lengthOf(files);
+f=1; //f is the stack# recording variable
+
+
+//This first loop is going to read the name of all raw-images in the Directory, then sort them so they are processed sequentially
+	// this has to be done with a sorted-table because of different numbers of 0000's in image-file names, so _1 and _10 were read sequentially instead of 0002,0003, etc.
+paths = newArray(max);
+timestamps = newArray(max);
+for(i=0; i<max; i++){
+	paths[i] = files[i];
+	inlabel = split(files[i],"_");
+	timestart = inlabel[4];
+	f = split(inlabel[5],".");
+	frames = f[0];
+	//padding the frame number in the array so every frame has the same number of characters, this 'solves' the _1, _10, and _100 problem by making them _0001, _0010, _0100, etc.
+	while(lengthOf(frames) < 5){
+		frames = "0"+frames; 
+	}
+	timestamps[i] = timestart+frames;
+}
+Table.create("image_sorting"); //creates the table in ImageJ
+IJ.renameResults("image_sorting","Results"); //I had to rename the table to "Results" to get ImageJ to use the built-in getResultString() related functions
+Table.setColumn("path",paths);
+Table.setColumn("times",timestamps);
+Table.sort("times"); //Should sort the table by the timestamps which are the time-start+Frame#; padded for differences in frame #
+f=1;
+//Now just storing the image paths in the order we want to load them
+//Have to do it this way so we can close the results table we just made to sort
+frameorder = newArray(max); //creating the empty array of the same length as the number of images
+for (i=0; i<nResults; i++){
+  frameorder[i] = getResultString("path",i);
+}
+dir = inputDir+"/";
+selectWindow("Results"); 
+run("Close"); //can close the results table now that we have the proper order of image-frames stored in the "frameorder[]" array variabe
+
+for(i=1; i<max; i++){
+   cur_stack = newArray(100);
+   stack_start = i;
+   for (n=0; n<100; n++){ //the batch of opening 100-images loop
+	img_n = stack_start+n;
+	impath = inputDir+frameorder[img_n];
+	open(impath);
+	cur_stack[n] = frameorder[img_n]; //storing the frame in a seq for pulling up for the ROI
+   }
+   run("Images to Stack", "name=Stack title=[] use");//loads the 100 open images into a stack
+   run("StackAverage ");//produce the background_average	
+   run("Copy");
+   run("Internal Clipboard");	
+   saveAs("Tiff", background+"/ffavg_"+f+".tif"); //saves the background 100 image average as "ffavg_#.tiff"
+   rename("avg100"); //opens the calculated StackAverage and renames to 'ff'
+   selectWindow("Stack");
+   close();
+   for(x=0; x<100; x++){
+	impath = inputDir+cur_stack[x];
+	open(impath);
+	rename("imgname"); //renames the opened image
+	run("Calculator Plus", "i1=imgname i2=avg100 operation=[Divide: i2 = (i1/i2) x k1 + k2] k1=235 k2=0 create");
+	rename(cur_stack[x]);
+        saveAs("Tiff", outputDirFF+"/ff_"+cur_stack[x]+".tif"); //saves the background 100 image average as "ffavg_#.tiff"
+	selectWindow("imgname");
+	close();
+
+	ff_img = "ff_"+cur_stack[x]+".tif"; //the renamed flat-field image
+	if(isOpen(ff_img)){
+	selectWindow(ff_img);
+	hh = getHeight();
+        ww = getWidth();
+    	//Setting the grayscale pixel value thresholds on the flat-field
+  	setThreshold(low_thresh, high_thresh, "Black & White");   
+    	//The following function chooses which parameters are recorded about Particles 
+    	//run("Set Measurements...", "area perimeter bounding fit shape stack display redirect = None decimal = 3");  
+	run("Set Measurements...", "area mean standard bounding modal min centroid center perimeter fit shape feret's median skewness kurtosis limit stack display redirect=None decimal=3");  
+	//size 1000 pixels in the mDPI is 1.57 mm ESD (1px = 44 um)
+    	run("Analyze Particles...", "size=min_pix-inf circularity=0-1 show=Nothing display clear include stack slice");       
+	saveAs("Results", output_files+"/"+cur_stack[x]+".txt");    //save the entire results table
+
+	//new loop to check to see if any result in the results-table has an area greater than the roi-size cutoff, if there is an ROI it breaks the loop
+	//I couldn't come up with a better way to check
+        for (j = 0; j < nResults; j++) {
+            if (getResult("Area", j) >= min_roi) {
+                imagename = getResult("Label", j);
+      		xpos = getResult("BX", j);
+         	ypos = getResult("BY", j);
+         	xlength = getResult("Width", j);
+        	ylength = getResult("Height", j);                     
+        	//give the selection a buffer zone
+        	//the 2*buffer centers the ID'd particle 
+       		buffer = 25;
+       		xpos2 = xpos - buffer;
+       		xlength2 = xlength + (2*buffer);
+       		ypos2 = ypos - buffer;
+       		ylength2 = ylength + (2*buffer);        
+       		//if the length in x-direction hits edge of frame
+       		if(xpos2+xlength2 > ww) 
+        		xlength2 = ww - xpos2;
+       		else
+        		xlength2 = xlength2;        
+      		if(xpos2 < 0)
+        		xpos2 = 0;
+      		else
+        		xpos2 = xpos2;        
+        	if(ypos2+ylength2 > hh)
+        		ylength2 = hh - ypos2;
+      		else
+      		  	ylength2 = ylength2;        
+       		if(ypos2 < 0)
+        		ypos2 = 0;
+      		else
+        		ypos2 = ypos2;        
+        	selectWindow(ff_img);
+        	makeRectangle(xpos2, ypos2, xlength2, ylength2);
+                run("Copy");
+                run("Internal Clipboard");
+                saveAs("Tiff", outputDir + "/" + cur_stack[x]+"_"+"_"+xpos+"_"+ypos+"_"+xlength+"_"+ylength);
+                close();
+            }
+        } //end results table loop for 1 image
+	if (isOpen(ff_img)){
+	selectWindow(ff_img);
+	 close();
+	}
+      }
+   }
+  close(); //closes the average-100 background
+    i += 100;	
+}
+
