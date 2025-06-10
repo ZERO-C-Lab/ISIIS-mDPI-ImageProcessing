@@ -9,12 +9,12 @@
 low_thresh = 0;
 high_thresh = 200;
 
-//minimum pixels^2 to cut and segment ROI separately 
-min_roi = 1029;
+//minimum pixels to cut and segment ROI separately 
+min_roi = 1000;
 
-//minimum pixels^2 to record information on particles
+//minimum pixels to record information on particles
 min_pix = 132;
-	//23px = 1mm; therefore a 500um cutoff (length/width single side) = 132 px^2
+	//23px = 1mm; therefore a 500um cutoff (length/width single side) = 132 px
 
 background = getDirectory('Choose Background_average Directory'); 	
 outputDir = getDirectory('Choose ROI Output Directory'); 
@@ -105,7 +105,7 @@ for(i=1; i<max; i++){
     	//The following function chooses which parameters are recorded about Particles 
     	//run("Set Measurements...", "area perimeter bounding fit shape stack display redirect = None decimal = 3");  
 	run("Set Measurements...", "area mean standard bounding modal min centroid center perimeter fit shape feret's median skewness kurtosis limit stack display redirect=None decimal=3");  
-	//size 1029 pixels in the mDPI is 1.59mm ESD (1px=44.5 um)
+	//size 1000 pixels in the mDPI is 1.57 mm ESD (1px=44 um)
     	run("Analyze Particles...", "size=min_pix-inf circularity=0-1 show=Nothing display clear include stack slice");       
 	saveAs("Results", output_files+"/"+cur_stack[x]+".txt");    //save the entire results table
 
